@@ -1,0 +1,64 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "deep link sample",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "OpenAppIntent",
+          "slots": [],
+          "samples": [
+            "open the app",
+            "amazon shopping app",
+            "amazon home page",
+            "open"
+          ]
+        },
+        {
+          "name": "GetOrdersIntent",
+          "slots": [],
+          "samples": [
+            "what are my past orders",
+            "get me my past orders",
+            "link me to orders",
+            "orders",
+            "order history"
+          ]
+        },
+        {
+          "name": "SearchIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "search",
+            "search {query}",
+            "find {query}",
+            "search for {query}",
+            "find a {query}"
+          ]
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    }
+  },
+  "version": "1"
+}
