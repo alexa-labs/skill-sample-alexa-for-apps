@@ -1,0 +1,64 @@
+{
+  "manifest": {
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "arn:aws:lambda:us-east-1:910734725388:function:5e6f0f3d-9dd6-49fa-ba08-2b7dfa13f1e1:Release_0"
+        },
+        "interfaces": [
+          {
+            "type": "APP_LINKS"
+          }
+        ],
+        "appLink": {
+          "linkedApplications": [
+            {
+              "catalogInfo": {
+                "identifier": "com.amazon.mShop.android.shopping",
+                "type": "GOOGLE_PLAY_STORE"
+              },
+              "domains": [
+                "amazon.com"
+              ],
+              "friendlyName": {
+                "default": "My Android App 1 2 3"
+              }
+            },
+            {
+              "catalogInfo": {
+                "identifier": "id297606951",
+                "type": "IOS_APP_STORE"
+              },
+              "domains": [
+                "amazon.com"
+              ],
+              "friendlyName": {
+                "default": "My iOS App 1 2 3"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "category": "KNOWLEDGE_AND_TRIVIA",
+      "distributionCountries": [],
+      "isAvailableWorldwide": true,
+      "locales": {
+        "en-US": {
+          "description": "Sample Full Description",
+          "examplePhrases": [
+            "Alexa open deep link sample",
+            "hello",
+            "help"
+          ],
+          "keywords": [],
+          "name": "Amazon Skill",
+          "summary": "Sample Short Description"
+        }
+      },
+      "testingInstructions": "Sample Testing Instructions."
+    }
+  }
+}
