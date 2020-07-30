@@ -2,7 +2,7 @@
 
 This sample uses the [Alexa for Apps](https://alexa.design/alexa-for-apps) App Link Skill Connection API in order to deep link into the Amazon shopping app. [iOS](https://apps.apple.com/us/app/amazon-shopping/id297606951), [Android](https://play.google.com/store/apps/details?id=com.amazon.mShop.android.shopping&hl=en_US)
 
-You will only need an [Amazon developer account](https://developer.amazon.com/) in order to run this sample.
+You will need an [Amazon developer account](https://developer.amazon.com/) in order to run this sample. In addition, you will need to sign up for Alexa for Apps and be accepted. [Sign up here.](https://build.amazonalexadev.com/2020Alexa_for_Apps_Alexa.html)
 
 ## Features
 * Open the Amazon shopping app from Alexa on mobile (fallback to the app store).
