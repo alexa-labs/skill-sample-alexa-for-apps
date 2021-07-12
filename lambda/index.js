@@ -13,7 +13,7 @@ const AMAZON_ANDROID_PACKAGE = "com.amazon.mShop.android.shopping";
 const AMAZON_IOS_ID = "id297606951";
 
 // Constants used by the AppLinks feature
-const APP_LINK_INTERFACE = "AppLink";
+const APP_LINK_STATE = "AppLink";
 const ANDROID_STORE_TYPE = "GOOGLE_PLAY_STORE";
 const IOS_STORE_TYPE = "IOS_APP_STORE";
 
@@ -34,9 +34,16 @@ const LaunchRequestHandler = {
 
         let speakOutput = CANNOT_SERVE_RESPONSE;
 
-        const appLinksInterface = handlerInput.requestEnvelope.context[APP_LINK_INTERFACE];
+        const appLinksInterface = handlerInput.requestEnvelope.context.System.supportedInterfaces['AppLink'];
         if(appLinksInterface != null) {
-            speakOutput = 'Welcome, you can launch a deep link to the Amazon shopping mobile app. I support deep linking to the search page, your order history, or simply opening the app. Which would you like to try? ';
+            // Skill can only support one version of AppLink interface. This version check can be used
+            // when migrating from V1 interface to V2 interface.
+            const version = appLinksInterface['version']
+            if (version === null) {
+                speakOutput = 'Welcome, you can launch a deep link to the Amazon shopping mobile app. I support deep linking to the search page, your order history, or simply opening the app. Which would you like to try? ';
+            } else if (version === "2.0") {
+                speakOutput = 'Welcome, you can launch a deep link to the Amazon shopping mobile app directly or via a push notification. I can send notification to open the search page, your order history, or simply opening the app. Which would you like to try? '
+            }
         }
 
         return handlerInput.responseBuilder
@@ -46,35 +53,15 @@ const LaunchRequestHandler = {
     }
 };
 
-function createAppLinkSkillConnection(linkType, link, isAndroid, unlockedSpeech, lockedScreenSpeech, suppress = false) {
+function createAppLinkSkillConnection(linksPerCatalog, linkTopic, suppress = false) {
     return {
         type: "Connections.StartConnection",
-        uri: "connection://AMAZON.LinkApp/1",
+        uri: "connection://AMAZON.LinkApp/2",
         input: {
-            catalogInfo: {
-                identifier: isAndroid ? AMAZON_ANDROID_PACKAGE : AMAZON_IOS_ID,
-                type: isAndroid ? ANDROID_STORE_TYPE : IOS_STORE_TYPE,
-            },
-            actions: {
-                primary: {
-                    type: linkType,
-                    link: link
-                }
-            },
-            prompts: {
-                onAppLinked: {
-                    prompt: {
-                        ssml: `<speak>${unlockedSpeech}</speak>`,
-                        type: "SSML"
-                    },
-                    defaultPromptBehavior: suppress? "SUPPRESS" : "SPEAK"
-                },
-                onScreenLocked: {
-                    prompt: {
-                        ssml: `<speak>${lockedScreenSpeech}</speak>`,
-                        type: "SSML"
-                    }
-                }
+            links: linksPerCatalog,
+            prompt: {
+                topic: linkTopic,
+                directLaunchDefaultPromptBehavior: suppress ? "SUPPRESS" : "SPEAK"
             }
         }
     }
@@ -92,20 +79,24 @@ const SessionResumedIntentHandler = { // TODO: check for cause.type == 'Connecti
         console.log("Session Resumed: " + JSON.stringify(handlerInput.requestEnvelope));
         const cause = handlerInput.requestEnvelope.request.cause;
         console.log(cause);
-        if(cause != null) {
-            //Let's log our results
-            // You can make decisions based on this and even continue the voice experience.
-            console.log("Primary result: " + JSON.stringify(cause.result.primary));
-            console.log("Fallback result: " + JSON.stringify(cause.result.fallback));
-            
-            //If the status failed for both, let's continue the experience.
-            if(cause.result.primary.status === "FAILURE" && cause.result.fallback.status === "FAILURE") {
-                return handlerInput.responseBuilder
-                    .speak("Oh no, sorry I was unable to link to the app. Check the status code in the logs to see what went wrong.")
-                    .getResponse();
+        if(cause != null && cause.result != null) {
+            if (cause.result.directLaunch != null) {
+                // handle V2 direct launch result
+                console.log("Direct launch primary result: " + JSON.stringify(cause.result.directLaunch.primary));
+                console.log("Direct launch fallback result: " + JSON.stringify(cause.result.directLaunch.fallback));
+            } else if (cause.result.sendToDevice != null) {
+                // handle V2 send to device result
+                console.log("Send to device result: " + JSON.stringify(cause.result.sendToDevice));
+            } else if (cause.result.primary || cause.result.fallback) {
+                // This is needed only if code handles both V1 and V2 AppLink interface during V1 to V2 migration period
+                console.log("V1 primary result: " + JSON.stringify(cause.result.primary));
+                console.log("V1 fallback result: " + JSON.stringify(cause.result.fallback));
+            } else {
+                // Unknown response
+                console.log("~~~~ Error: unknown response: " + JSON.stringify(cause.result));
             }
         }
-        return handlerInput.responseBuilder.getResponse();
+        return handlerInput.responseBuilder.withShouldEndSession(true).getResponse();
     }
 }
 
@@ -120,24 +111,35 @@ const OpenAppIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'OpenAppIntent';
     },
     handle(handlerInput) {
-        const appLinksInterface = handlerInput.requestEnvelope.context[APP_LINK_INTERFACE];
-        if(appLinksInterface) {
-            const unlockedSpeech = "Okay. ";
-            const lockedScreenSpeech = "Please unlock your device to open the Amazon Shopping App. ";
-            console.log(appLinksInterface.supportedCatalogTypes);
-            if(appLinksInterface.supportedCatalogTypes.includes(ANDROID_STORE_TYPE)) {
+        const appLinkState = handlerInput.requestEnvelope.context[APP_LINK_STATE];
+        if(appLinkState) {
+            if (appLinkState.supportedCatalogTypes) {
+                // This means request is V1, which should not happen after skill declares support for APP_LINKS_V2 interface.
+                // But we could use this branch if the same code base is used during migration for skills 
+                // in both development and live stage that support different version of APP_LINKS interface.
+            } else if (appLinkState.sendToDevice || appLinkState.directLaunch) {
+                console.log(appLinkState);
+                // create links per supported catalog type
+                let links = {
+                    GOOGLE_PLAY_STORE: {
+                        primary: {
+                            ANDROID_PACKAGE : {
+                                packageIdentifier: AMAZON_ANDROID_PACKAGE
+                            }
+                        }
+                    },
+                    IOS_APP_STORE: {
+                        primary: {
+                            UNIVERSAL_LINK: {
+                                appIdentifier: AMAZON_IOS_ID,
+                                url: "https://www.amazon.com"
+                            }
+                        }
+                    }
+                };
                 //Send the app links response!
-                return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection( // TODO Fallback on this.
-                    ANDROID_PACKAGE_TYPE, AMAZON_ANDROID_PACKAGE, true, unlockedSpeech, lockedScreenSpeech, false
-                ))
-                .getResponse();
-            } else if(appLinksInterface.supportedCatalogTypes.includes(IOS_STORE_TYPE)) {
-                //Send the app links response!
-                return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection(
-                    // No need for fallback. it's built right in!
-                    UNIVERSAL_LINK_TYPE, "https://amazon.com", false, unlockedSpeech, lockedScreenSpeech, false
-                ))
-                .getResponse();
+                return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection(links, "open Amazon shopping app."))
+                    .getResponse();
             }
         }
 
@@ -156,24 +158,36 @@ const GetOrdersIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'GetOrdersIntent';
     },
     handle(handlerInput) {
-        const appLinksInterface = handlerInput.requestEnvelope.context[APP_LINK_INTERFACE];
-        if(appLinksInterface) {
-            const unlockedSpeech = "Okay. ";
-            const lockedScreenSpeech = "Please unlock your device to open the Amazon Shopping App. ";
-            const deeplink = AMAZON_ORDER_HISTORY_URL;
-            console.log(appLinksInterface.supportedCatalogTypes);
-            if(appLinksInterface.supportedCatalogTypes.includes(ANDROID_STORE_TYPE)) {
+        const appLinkState = handlerInput.requestEnvelope.context[APP_LINK_STATE];
+        if(appLinkState) {
+            if (appLinkState.supportedCatalogTypes) {
+                // This means request is V1, which should not happen after skill declares support for APP_LINKS_V2 interface.
+                // But we could use this branch if the same code base is used during migration for skills 
+                // in both development and live stage that support different version of APP_LINKS interface.
+            } else if (appLinkState.sendToDevice || appLinkState.directLaunch) {
+                // create links per supported catalog type
+                let links = {
+                    GOOGLE_PLAY_STORE: {
+                        primary: {
+                            UNIVERSAL_LINK : {
+                                appIdentifier: AMAZON_ANDROID_PACKAGE,
+                                url: AMAZON_ORDER_HISTORY_URL
+                            }
+                        }
+                    },
+                    IOS_APP_STORE: {
+                        primary: {
+                            UNIVERSAL_LINK: {
+                                appIdentifier: AMAZON_IOS_ID,
+                                url: AMAZON_ORDER_HISTORY_URL
+                            }
+                        }
+                    }
+                };
+                const topic = "See your order history";
                 //Send the app links response!
-                return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection(
-                    UNIVERSAL_LINK_TYPE, deeplink, true, unlockedSpeech, lockedScreenSpeech, true
-                ))
-                .getResponse();
-            } else if(appLinksInterface.supportedCatalogTypes.includes(IOS_STORE_TYPE)) {
-                //Send the app links response!
-                return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection(
-                    UNIVERSAL_LINK_TYPE, deeplink, false, unlockedSpeech, lockedScreenSpeech, true
-                ))
-                .getResponse();
+                return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection(links, topic, true
+                    )).getResponse();
             }
         }
 
@@ -197,27 +211,44 @@ const SearchIntentHandler = {
         console.log(JSON.stringify(handlerInput.requestEnvelope));
         const searchQuery = Alexa.getSlotValue(handlerInput.requestEnvelope, "query");
 
-        const appLinksInterface = handlerInput.requestEnvelope.context[APP_LINK_INTERFACE];
-        if(appLinksInterface) {
+        const appLinkState = handlerInput.requestEnvelope.context[APP_LINK_STATE];
+        if(appLinkState) {
             //If there is a query, append it as a query Param, otherwise just open the search page.
             let searchUrl = new url.URL(AMAZON_SEARCH_URL);
             let queryParams = new url.URLSearchParams();
             queryParams.set(AMAZON_SEARCH_QUERY_PARAM, searchQuery);
             searchUrl.search = queryParams;
             const deeplink = searchQuery != null ? searchUrl.toString() : AMAZON_SEARCH_URL;
-            
-            const unlockedSpeech = `Searching for ${searchQuery}. `;
-            const lockedScreenSpeech = "Please unlock your device to search in the Amazon Shopping App. ";
-            if(appLinksInterface.supportedCatalogTypes.includes(ANDROID_STORE_TYPE)) {
+
+            if (appLinkState.supportedCatalogTypes) {
+                // This means request is V1, which should not happen after skill declares support for APP_LINKS_V2 interface.
+                // But we could use this branch if the same code base is used during migration for skills 
+                // in both development and live stage that support different version of APP_LINKS interface.
+            } else if (appLinkState.sendToDevice || appLinkState.directLaunch) {
+                // create links per supported catalog type
+                let links = {
+                    GOOGLE_PLAY_STORE: {
+                        primary: {
+                            UNIVERSAL_LINK : {
+                                appIdentifier: AMAZON_ANDROID_PACKAGE,
+                                url: deeplink
+                            }
+                        }
+                    },
+                    IOS_APP_STORE: {
+                        primary: {
+                            UNIVERSAL_LINK: {
+                                appIdentifier: AMAZON_IOS_ID,
+                                url: deeplink
+                            }
+                        }
+                    }
+                };
+
+                const topic = `See search results for ${searchQuery}.`;
                 //Send the app links response!
                 return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection(
-                    UNIVERSAL_LINK_TYPE, deeplink, true, unlockedSpeech, lockedScreenSpeech, true
-                ))
-                .getResponse();
-            } else if(appLinksInterface.supportedCatalogTypes.includes(IOS_STORE_TYPE)) {
-                //Send the app links response!
-                return handlerInput.responseBuilder.addDirective(createAppLinkSkillConnection(
-                    UNIVERSAL_LINK_TYPE, deeplink, false, unlockedSpeech, lockedScreenSpeech, true
+                    links, topic, true
                 ))
                 .getResponse();
             }
@@ -235,7 +266,10 @@ const HelpIntentHandler = {
             && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.HelpIntent';
     },
     handle(handlerInput) {
-        const speakOutput = "This skill only works from the context of the Alexa mobile app, a mobile accessory such as the Echo Buds, or from an Alexa-enable mobile phone. You can ask me to deep link into the Amazon shopping app\'s order history, search page, or simply opening the app. What would you like me to do?";
+        const speakOutput = `This skill can launch a deep link to the Amazon shopping mobile app directly or via a push notification.
+            It works from the context of the Alexa mobile deivce as well as Echo devices.
+            You can ask me to deep link into the Amazon shopping app\'s order history, search page, or simply opening the app.
+            What would you like me to do?`;
 
         return handlerInput.responseBuilder
             .speak(speakOutput)
@@ -253,6 +287,7 @@ const CancelAndStopIntentHandler = {
         const speakOutput = 'Goodbye!';
         return handlerInput.responseBuilder
             .speak(speakOutput)
+            .withShouldEndSession(true)
             .getResponse();
     }
 };

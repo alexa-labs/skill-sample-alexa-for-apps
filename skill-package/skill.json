@@ -3,11 +3,11 @@
     "apis": {
       "custom": {
         "endpoint": {
-          "uri": "arn:aws:lambda:us-east-1:910734725388:function:5e6f0f3d-9dd6-49fa-ba08-2b7dfa13f1e1:Release_0"
+          "uri": "{SPECIFY_YOUR_SKILL_END_POINT}"
         },
         "interfaces": [
           {
-            "type": "APP_LINKS"
+            "type": "APP_LINKS_V2"
           }
         ],
         "appLink": {
@@ -21,7 +21,7 @@
                 "amazon.com"
               ],
               "friendlyName": {
-                "default": "My Android App 1 2 3"
+                "default": "Amazon Shopping"
               }
             },
             {
@@ -33,8 +33,27 @@
                 "amazon.com"
               ],
               "friendlyName": {
-                "default": "My iOS App 1 2 3"
+                "default": "Amazon Shopping"
               }
+            }
+          ],
+          "linkedWebDomains": [
+            "www.amazon.com"
+          ],
+          "linkedCommonSchemes": {
+            "IOS_APP_STORE": [
+                "MAPS",
+                "TEL"
+            ],
+            "GOOGLE_PLAY_STORE": [
+                "MAPS",
+                "TEL"
+            ]
+          },
+          "linkedAndroidCommonIntents": [
+            {
+              "intentName": "SHOW_IN_MAP",
+              "catalogType": "GOOGLE_PLAY_STORE"
             }
           ]
         }
@@ -59,6 +78,11 @@
         }
       },
       "testingInstructions": "Sample Testing Instructions."
-    }
+    },
+    "permissions": [
+      {
+        "name": "alexa::devices:app:push_notifications"
+      }
+    ]
   }
 }
