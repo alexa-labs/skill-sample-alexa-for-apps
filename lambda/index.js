@@ -34,7 +34,7 @@ const LaunchRequestHandler = {
 
         let speakOutput = CANNOT_SERVE_RESPONSE;
 
-        const appLinksInterface = handlerInput.requestEnvelope.context.System.supportedInterfaces['AppLink'];
+        const appLinksInterface = handlerInput.requestEnvelope.context.System.device.supportedInterfaces['AppLink'];
         if(appLinksInterface != null) {
             // Skill can only support one version of AppLink interface. This version check can be used
             // when migrating from V1 interface to V2 interface.
